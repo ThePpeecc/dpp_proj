@@ -12,7 +12,7 @@ import "lib/github.com/diku-dk/sorts/radix_sort"
 -- output { 1391 }
 entry test_radix_nn [n] (xs : [n]u32) = 
   let our_res = radix_sort_nn xs
-  let correct_res = radix_sort 32 u32.get_bit xs 
+  let correct_res = radix_sort 32 u32.get_bit xs
   let comp = map2 (==) our_res correct_res
   let converted_comp = map (i32.bool) comp
   in reduce (+) 0 converted_comp
