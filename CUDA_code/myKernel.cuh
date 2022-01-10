@@ -2,13 +2,30 @@
 //#include"kernel.cuh"
 #define BLOCK_SIZE 256
 #define LOG2_BLOCK_SIZE 8
-#define NUM_DATA_BLOCKS 16
+#define WINDOW_SIZE 16
+#define WINDOW_BITS 4
 
 namespace Kernels {
+  
+  template<class T>
+  void print_cuda_array(T* array, size_t array_length){
+    // Note the cuda array must instanciated with cudaManagedMalloc 
+    // This ensures it's part of the Unified Memory space and can be accessed
+    // by the Host.
+
+    std::cout << "[";
+    for(size_t i = 0; i < array_length; i++) {
+      std::string str = std::to_string(array[i]);
+      std::cout << str;
+      if( i < array_length - 1) std::cout << ", ";
+    }
+    std::cout << "]\n";
+  }
+
+
   template<class T>
   __global__ void block_radix_sort_my(
-    T* data_in,
-    T* data_out,
+    T* data,
     T* prefixes,
     T* d_block_sums,
     unsigned int shift_width,
@@ -19,12 +36,14 @@ namespace Kernels {
     __shared__ T shared_memory_data[BLOCK_SIZE];
     __shared__ T mask[BLOCK_SIZE];
     __shared__ T merged_scan_mask[BLOCK_SIZE];
-    __shared__ T mask_sums[NUM_DATA_BLOCKS];
-    __shared__ T histogram[NUM_DATA_BLOCKS];
+    __shared__ T mask_sums[WINDOW_SIZE];
+    __shared__ T histogram[WINDOW_SIZE];
+
+    const uint32_t window_size = 1 << WINDOW_BITS;
 
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
 
-    shared_memory_data[threadIdx.x] = (idx < data_length) ? data_in[idx] : 0; 
+    shared_memory_data[threadIdx.x] = (idx < data_length) ? data[idx] : 0; 
 
     /* // Performance test
     if (idx < data_length) {
@@ -35,9 +54,9 @@ namespace Kernels {
     */
 
     T write_data = shared_memory_data[threadIdx.x];
-    unsigned int radix = (write_data >> shift_width) & (NUM_DATA_BLOCKS - 1);
+    unsigned int radix = (write_data >> shift_width) & (window_size - 1);
     __syncthreads();
-    for(int i = 0; i < NUM_DATA_BLOCKS; i++){
+    for(int i = 0; i < WINDOW_SIZE; i++){
       // Init The mask
       bool val_equals_i = false;
       if (idx < data_length) {
@@ -83,7 +102,7 @@ namespace Kernels {
     if (threadIdx.x == 0) {
         //Turn inclusive to exclusive scan
         unsigned int mask_sum = 0;
-        for (unsigned int i = 0; i < 16; i++)
+        for (unsigned int i = 0; i < window_size; i++)
         {
             histogram[i] = mask_sum;
             mask_sum += mask_sums[i];
@@ -100,42 +119,45 @@ namespace Kernels {
 
       __syncthreads();
       prefixes[idx] = merged_scan_mask[threadIdx.x];
-      data_out[idx] = shared_memory_data[threadIdx.x];
+      data[idx] = shared_memory_data[threadIdx.x];
     }
   }  
   
   template<class T>
   __global__ void block_shuffle_my(
-    T* data_out,
-    T* data_in,
+    T* data,
     T* scan_block_sums,
     T* prefixes,
-    unsigned int shift_width,
+    unsigned int window,
     size_t data_length
   ){
     uint64_t idx = threadIdx.x + blockIdx.x * BLOCK_SIZE;
+    int window_size = 1 << WINDOW_BITS;
+
     if (idx < data_length){
-      T target_data = data_in[idx];
-      uint32_t global_radix = ((target_data >> shift_width) & 15) * gridDim.x + blockIdx.x;
+      T target_data = data[idx];
+      uint32_t global_radix = ((target_data >> window) & (window_size - 1)) * gridDim.x + blockIdx.x;
       uint64_t target_global_position = scan_block_sums[global_radix] + prefixes[idx];
       __syncthreads();
-      data_out[target_global_position] = target_data;
+      data[target_global_position] = target_data;
     }
   }
 
   template<class T>
   void radix_sort_my(T* data_in, T* data_out, size_t data_length) {
+    
+
+
+
     const size_t block_num = (data_length % BLOCK_SIZE == 0) ? 
       data_length / BLOCK_SIZE : data_length / BLOCK_SIZE + 1;
-    const size_t d_block_sums_len = NUM_DATA_BLOCKS * block_num; // 16-way split
+    const size_t d_block_sums_len = WINDOW_SIZE * block_num; // 16-way split
     
-    unsigned int* prefixes;
-    unsigned int* d_block_sums;
-    unsigned int* scan_block_sums;
+    T* prefixes;
+    T* d_block_sums;
+    T* scan_block_sums;
 
     cudaMemcpy(data_out, data_in, sizeof(T)*data_length, cudaMemcpyDeviceToDevice);
-    std::cout << "Block num: " << block_num << "\n";
-
 
     cudaMallocManaged(&prefixes,            sizeof(T) * data_length);
     cudaMallocManaged(&d_block_sums,        sizeof(T) * d_block_sums_len);
@@ -145,30 +167,14 @@ namespace Kernels {
     cudaMemset(d_block_sums,    0, sizeof(T) * d_block_sums_len);
     cudaMemset(scan_block_sums, 0, sizeof(T) * d_block_sums_len);
 
-        
-    unsigned int shmem_sz = (BLOCK_SIZE*3 + 1 + 32)
-                            * sizeof(unsigned int);
-    
     // This codes doesn't run an ExclusiveSum, just sets up allocations
     void     *d_temp_storage = NULL;
     size_t   temp_storage_bytes = 0;
     cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_block_sums, scan_block_sums, d_block_sums_len);
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
 
-    for(unsigned int window = 0; window < 30; window += 4){
-      /*
-      block_radix_sort<<<block_num, BLOCK_SIZE, shmem_sz>>>(
-        data_out,
-        prefixes,
-        d_block_sums, 
-        window, 
-        data_in,
-        data_length
-      );
-      */
-    
+    for(unsigned int window = 0; window < 32; window += WINDOW_BITS){
       block_radix_sort_my<<<block_num, BLOCK_SIZE>>>(
-        data_in,
         data_out,
         prefixes,
         d_block_sums,
@@ -176,10 +182,15 @@ namespace Kernels {
         data_length
       );
     
-      cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_block_sums, scan_block_sums, d_block_sums_len);  
-      
+      cub::DeviceScan::ExclusiveSum(
+        d_temp_storage,
+        temp_storage_bytes,
+        d_block_sums,
+        scan_block_sums,
+        d_block_sums_len
+      );  
+
       block_shuffle_my<<<block_num, BLOCK_SIZE>>>(
-        data_in,
         data_out,
         scan_block_sums,
         prefixes,
@@ -187,11 +198,12 @@ namespace Kernels {
         data_length
       );
     }
-    //cudaMemcpy(data_out, data_in, sizeof(unsigned int) * data_length, cudaMemcpyDeviceToDevice);
+    
 
     cudaFree(scan_block_sums);
     cudaFree(d_block_sums);
     cudaFree(prefixes);
+    cudaFree(d_temp_storage);
 
   }
 
