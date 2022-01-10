@@ -29,7 +29,7 @@ let radix_sort_step_nn_fast_big [n] (xs : [n]u32) (b : i32) : [n]u32 =
                                then i64.i32 (d>>15-1+offs)
                                else i64.i32 (d&adBit-1)) bits temp
 
-  in scatter (copy xs) didxs xs -- sorted
+  in scatter (copy xs) idxs xs -- sorted
 
 
 
