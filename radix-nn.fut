@@ -21,26 +21,27 @@ let radix_sort_step_nn [n] (xs : [n]u32) (b : u32) (bits : u32) : [n]u32 =
 let radix_sort_step_nn_fast_big [n] (xs : [n]u32) (b : i32) : [n]u32 =
   let bits = map (u32.get_bit b) xs   -- [1,0,1,0,1,0]
 
-  let temp = scan (\s b -> s + b<<15+(1-b)) 0 bits
+  let temp = scan (\s b -> s + (b<<15)+(1-b)) 0 bits
   let adBit = (1<<15)-1
+
   let offs = temp[n-1] & adBit
 
   let idxs = map2 (\b d -> if b == 1 
-                               then i64.i32 (d>>15-1+offs)
-                               else i64.i32 (d&adBit-1)) bits temp
+                               then i64.i32 ((d>>15)-1+offs)
+                               else i64.i32 ((d&adBit)-1)) bits temp
 
   in scatter (copy xs) idxs xs -- sorted
 
 
 
 let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
-  if n <= 100000 then 
-    if n <= 1000 then
-      if n <= 100 then
-        loop xs for i < 8 do radix_sort_step_nn xs (u32.i32 i) 4
-      else
-        loop xs for i < 11 do radix_sort_step_nn xs (u32.i32 i) 3
-    else 
-      loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
-  else 
-    loop xs for i < 32 do radix_sort_step_nn_fast_big xs i
+  --if n <= 100000 then 
+  --  if n <= 1000 then
+  --    if n <= 100 then
+  --      loop xs for i < 8 do radix_sort_step_nn xs (u32.i32 i) 4
+  --    else
+  --      loop xs for i < 11 do radix_sort_step_nn xs (u32.i32 i) 3
+  --  else 
+  --     loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
+  --else 
+  loop xs for i < 4 do radix_sort_step_nn_fast_big xs i
