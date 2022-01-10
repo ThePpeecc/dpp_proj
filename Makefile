@@ -7,6 +7,7 @@ clean:
 	rm *.actual 2&> /dev/null ||:
 	rm *.expected 2&> /dev/null ||:
 	rm -rf data
+	rm *.tuning
 
 
 test:

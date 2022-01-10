@@ -36,4 +36,10 @@ let radix_sort_step_nn_fast_big [n] (xs : [n]u32) (b : i32) : [n]u32 =
 
 
 let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
-  loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
+  if n <= 100000 then 
+    if n <= 1000 then
+      loop xs for i < 8 do radix_sort_step_nn xs (u32.i32 i) 4
+    else 
+      loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
+  else 
+    loop xs for i < 32 do radix_sort_step_nn_fast_big xs i
