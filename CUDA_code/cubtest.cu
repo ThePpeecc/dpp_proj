@@ -3,12 +3,11 @@
 #include<curand.h>
 #include<curand_kernel.h>
 #include<string>
-#include<cub/cub.cuh>
 #include<chrono>
 #include"marc-marko-cuda-radix-code/kernel.cuh"
 #include"myKernel.cuh"
 
-#define ARRAY_SIZE 1 << 24
+#define ARRAY_SIZE 100000000
 #define BLOCK_SIZE 256
 #define SEED 42
 #define RUNS 10
@@ -30,11 +29,9 @@ bool compare_arrays(T* arr_1, T* arr_2, size_t array_length) {
     if (arr_1[i] != arr_2[i]);
   }
 
-
-
-
   return true;
 }
+
 
 int main() {
   //Init data
@@ -68,6 +65,19 @@ int main() {
 
   cudaMemcpy(data_in_mm, data_in, N * sizeof(datatype), cudaMemcpyDeviceToDevice);
   
+  if (run_my) {
+    for (int i = 0; i < RUNS; i++) {
+      auto start = std::chrono::high_resolution_clock::now();
+      Kernels::radix_sort_my(data_in, data_out_my, N);
+      cudaDeviceSynchronize();
+      auto elapsed = std::chrono::high_resolution_clock::now() - start;
+      runs_my[i] = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+    }
+    std::cout << "My Implentations runtimes: \n";
+    Kernels::print_cuda_array(runs_my, RUNS);
+    
+    
+  }
 
   if (run_cub) {
     // INIT CUB
@@ -84,21 +94,10 @@ int main() {
       auto elapsed = std::chrono::high_resolution_clock::now() - start;
       runs_cub[i] = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
     }
+    std::cout << "Cubs runtimes: \n";
     Kernels::print_cuda_array(runs_cub, RUNS);
-  } 
-
-  if (run_my) {
-    for (int i = 0; i < RUNS; i++) {
-      auto start = std::chrono::high_resolution_clock::now();
-      Kernels::radix_sort_my(data_in, data_out_my, N);
-      cudaDeviceSynchronize();
-      auto elapsed = std::chrono::high_resolution_clock::now() - start;
-      runs_my[i] = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
-    }
-    Kernels::print_cuda_array(runs_my, RUNS);
-    
-    
   }
+
 
   if (run_mm){
     for (int i = 0; i < RUNS; i++) {
@@ -110,6 +109,7 @@ int main() {
       // Because Marc & Marko solution overwrites the input array
       cudaMemcpy(data_in_mm, data_in, N * sizeof(datatype), cudaMemcpyDeviceToDevice);
     }
+    std::cout << "MM runtimes: \n";
     Kernels::print_cuda_array(runs_mm, RUNS);
   }
    

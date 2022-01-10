@@ -62,7 +62,7 @@ int main()
         // Run sorting operation
         auto start_cub = std::chrono::high_resolution_clock::now();
         cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_in, d_out_cub, num_elems);
-        auto elapsed_cub = std::chrono::high_resolution_clock::now() - start;
+        auto elapsed_cub = std::chrono::high_resolution_clock::now() - start_cub;
         long long microseconds_cub = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_cub).count();
         std::cout <<"CUB radix sort in µs: "<<  microseconds_cub << std::endl;
 
