@@ -44,4 +44,4 @@ let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
   --  else 
   --     loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
   --else 
-  loop xs for i < 4 do radix_sort_step_nn_fast_big xs i
+  loop xs for i < 32 do radix_sort_step_nn_fast_big xs i
