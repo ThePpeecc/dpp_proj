@@ -1,13 +1,38 @@
 
+let segScan [n] 't (op: t -> t -> t) (ne:t) (arr: [n](t, bool)): [n]t =
+  let modOp (v1: t, f1:bool ) (v2: t, f2: bool) = 
+    (if f2 then v2 else op v1 v2, f1 || f2)
+  in map (.0) (scan modOp (ne, false) arr)   
+
+let sgmscan 't [n] (op: t->t->t) (ne: t) (flg : [n]i64) (arr : [n]t) : [n]t =
+  let flgs_vals =
+    scan ( \ (f1, x1) (f2,x2) ->
+            let f = f1 | f2 in
+            if f2 != 0 then (f, x2)
+            else (f, op x1 x2) )
+         (0,ne) (zip flg arr)
+  let (_, vals) = unzip flgs_vals
+  in vals
+
+
 let radix_sort_step_nn [n] (xs : [n]u32) (b : u32) (bits : u32) : [n]u32 =
   let bits_len = i64.u32 (1<<bits)
   let get_bits x = x >> (b*bits) & ((1<<bits)-1)
   let pairwise op arr1 arr2 = map2 (op) arr1 arr2
-  let bins = xs |> map get_bits
-  let flags = tabulate_2d n bits_len (\i j -> 
-                                 if i64.u32 bins[i] == j then 1
-                                 else 0)
-  let offsets = scan (pairwise (+)) (replicate bits_len 0) flags
+  let bins = map get_bits xs
+  let fflagsT = tabulate (n*bits_len) (\idx -> 
+    let i = idx / bits_len
+    let j = idx % bits_len
+    in
+    if i64.u32 bins[i] == j then 1 else 0 
+  )
+  let flagsForFlags = tabulate (n*bits_len) (\idx -> if idx % bits_len == 0 then 1 else 0) 
+  let foffsets = sgmscan (+) 0 flagsForFlags fflagsT
+  let offsets = transpose <| unflatten bits_len n foffsets
+  --let flags = tabulate_2d n bits_len (\i j -> 
+  --                               if i64.u32 bins[i] == j then 1
+  --                               else 0)
+  --let offsets = scan (pairwise (+)) (replicate bits_len 0) flags
 
   let get_last xs = last xs
 
