@@ -41,7 +41,87 @@ let radix_sort_step_nn [n] (xs : [n]u32) (b : u32) (bits : u32) : [n]u32 =
   let f bin arr = offs[i32.u32 bin]+arr[i32.u32 bin]-1
   let is = map2 f bins offsets
   in scatter (copy xs) is xs
+
+
+
+
+
+let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
+  let bits_len = (1<<2)
+  let get_bits x = x >> (b*2) & ((1<<bits_len)-1)
+  let pairwise op arr1 arr2 = map2 (op) arr1 arr2
+  let bins = map get_bits xs -- First get bits for input (a)
   
+  let implicit = map (\x -> (u32.bool(x < 3u32))<<(10u32*x)) bins -- Implicit representation (b)
+
+  let buckets = tabulate n (\idx -> if idx % 4 == 0 then 1  else 0)
+  
+  let prefix = sgmscan (+) 0 buckets implicit -- local prefix sums (c) // Counts can be caclulated now 
+
+  let bucket_width = 4
+  let num_buckets = n / bucket_width
+  let mask = (1<<10)-1
+  
+
+
+   
+  let local_sort = tabulate n (\idx ->  -- (f/g combined)
+      let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1] 
+      let lidx = (u32.i64 idx) % (bits_len) + 1
+
+      let (_, res) = loop (x, y) = (lidx,0) while x > 0 do (x - ((count >> 10*y) & mask), y+1)
+      
+      in res
+    )
+
+  let radix_count = tabulate (num_buckets*(i64.u32 bits_len)) (\idx ->  -- (h)
+      let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1]
+      let num = (u32.i64 idx) % bits_len
+      let res = match num 
+                case 0 -> count & mask
+                case 1 -> (count >> 10) & mask
+                case 2 -> (count >> 20) & mask
+                case 3 -> 4 - (count & mask) - ((count >> 10) & mask) - ((count >> 20) & mask)
+      in res
+    )
+
+
+
+  let global_offs = concat [0] (scan (+) 0 radix_count)[:(i64.u32 bits_len)-1] -- (i)
+  
+  let is = tabulate n (\idx -> -- (j)
+    let local_idx  = idx % bucket_width + 1
+    let bucket_num = idx / num_buckets
+
+    let our_num    = i64.u32 local_sort[idx]
+
+    let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1]
+    
+    
+    let local_off = loop x = u32.i64 local_idx for i < our_num do x - ((count >> 10*(u32.i64 i)) & mask)
+
+
+    let global_off = global_offs[our_num * num_buckets + bucket_num]
+
+    in i64.u32 (local_off+global_off)
+  )
+
+  in scatter (copy xs) is local_sort
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 let radix_sort_step_nn_fast_big [n] (xs : [n]u32) (b : i32) : [n]u32 =
   let bits = map (u32.get_bit b) xs   -- [1,0,1,0,1,0]
@@ -69,4 +149,4 @@ let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
   --  else 
   --     loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
   --else 
-  loop xs for i < 32 do radix_sort_step_nn_fast_big xs i
+  loop xs for i < 16 do radix_sort_step_nn_4_way xs (u32.i32 i)
