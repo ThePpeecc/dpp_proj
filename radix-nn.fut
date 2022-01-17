@@ -44,9 +44,8 @@ let radix_sort_step_nn [n] (xs : [n]u32) (b : u32) (bits : u32) : [n]u32 =
 
 
 
-let get_num mask count num = 
-   if num < 3u32 then (count >> 10*num) & mask
-   else 4 - (count & mask) - ((count >> 10) & mask) - ((count >> 20) & mask)
+let get_num mask count num = (count >> 8u32*num) & mask
+  
 
 let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
   let bits_len = 1<<2
@@ -54,7 +53,7 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
 
   let bins = map get_bits xs -- First get bits for input (a)
   
-  let implicit = map (\x -> (u32.bool(x < 3u32))<<(10u32*x)) bins -- Implicit representation (b)
+  let implicit = map (\x -> 1u32<<(8u32*x)) bins -- Implicit representation (b)
 
   let buckets = tabulate n (\idx -> if idx % 4 == 0 then 1  else 0)
   
@@ -62,44 +61,32 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
 
   let bucket_width = 4
   let num_buckets = n / bucket_width
-  let mask = (1<<10)-1
+  let mask = (1<<8)-1
 
-  let pre_count = reverse (map2 (\pref b -> 1-get_num mask pref b) (reverse prefix) (reverse bins)) -- (e)
+  let pre_count = map2 (\pref b -> (get_num mask pref b) - 1) prefix bins -- (e)
 
-  let rank = map3 (\count pref b -> -- (f) 
-      let gn n = 
-        if b > n then get_num mask pref n
-        else 0
-      in (gn 0) + (gn 1) + (gn 2) + count
-    ) pre_count prefix bins 
-
-   
 
   let radix_count = tabulate (num_buckets*(i64.u32 bits_len)) (\idx ->  -- (h)
       let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1]
-      let num = (u32.i64 idx) % bits_len
+      let num = u32.i64 (idx / num_buckets)
       in get_num mask count num
     )
 
 
-
+  
   let global_offs = concat [0] (scan (+) 0 radix_count)[:num_buckets*(i64.u32 bits_len)-1] -- (i)
 
-  let _ = trace (rank, global_offs)
   let is = tabulate n (\idx -> -- (j)
     let bucket_num = idx / bucket_width
 
     let our_num    = i64.u32 bins[idx]
 
-    let local_off = rank[idx]
+    let local_off = pre_count[idx]
     
     
-    let _ = trace (our_num, num_buckets, bucket_num)
-    let global_off = global_offs[our_num + num_buckets * bucket_num]
-
+    let global_off = global_offs[our_num * num_buckets + bucket_num]
     in i64.u32 (local_off+global_off)
   )
-  let _ = trace (is, xs)
   in scatter (copy xs) is xs
 
 
