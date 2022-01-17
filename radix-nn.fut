@@ -135,5 +135,5 @@ let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
   else 
     let rest = 4 - (n % 4)
     let modXS = xs ++ (replicate rest u32.highest)
-    let sortedModXS = loop xs for i < 16 do radix_sort_step_nn_4_way modXS (u32.i32 i)
+    let sortedModXS = loop modXS for i < 16 do radix_sort_step_nn_4_way modXS (u32.i32 i)
     in sortedModXS[:n]
