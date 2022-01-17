@@ -69,7 +69,7 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
       let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1] 
       let lidx = (u32.i64 idx) % (bits_len) + 1
 
-      let (_, res) = loop (x, y) = (lidx,0) while x > 0 do (x - ((count >> 10*y) & mask), y+1)
+      let (_, res) = loop (x, y) = (lidx,0) while x > 0 && y < 3 do (x - ((count >> 10*y) & mask), y+1)
       
       in res
     )
@@ -87,11 +87,11 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
 
 
 
-  let global_offs = concat [0] (scan (+) 0 radix_count)[:(i64.u32 bits_len)-1] -- (i)
+  let global_offs = trace(concat [0] (scan (+) 0 radix_count)[:num_buckets*(i64.u32 bits_len)-1]) -- (i)
   
   let is = tabulate n (\idx -> -- (j)
     let local_idx  = idx % bucket_width + 1
-    let bucket_num = idx / num_buckets
+    let bucket_num = idx / bucket_width
 
     let our_num    = i64.u32 local_sort[idx]
 
