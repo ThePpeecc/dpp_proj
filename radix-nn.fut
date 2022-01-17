@@ -49,9 +49,9 @@ let get_num mask count num =
    else 4 - (count & mask) - ((count >> 10) & mask) - ((count >> 20) & mask)
 
 let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
-  let bits_len = (1<<2)
-  let get_bits x = x >> (b*2) & ((1<<bits_len)-1)
-  let pairwise op arr1 arr2 = map2 (op) arr1 arr2
+  let bits_len = 1<<2
+  let get_bits x = x >> (b*2) & 3
+
   let bins = map get_bits xs -- First get bits for input (a)
   
   let implicit = map (\x -> (u32.bool(x < 3u32))<<(10u32*x)) bins -- Implicit representation (b)
@@ -63,10 +63,9 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
   let bucket_width = 4
   let num_buckets = n / bucket_width
   let mask = (1<<10)-1
-  
-
 
   let pre_count = reverse (map2 (\pref b -> 1-get_num mask pref b) (reverse prefix) (reverse bins)) -- (e)
+
   let rank = map3 (\count pref b -> -- (f) 
       let gn n = 
         if b > n then get_num mask pref n
@@ -86,20 +85,21 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
 
   let global_offs = concat [0] (scan (+) 0 radix_count)[:num_buckets*(i64.u32 bits_len)-1] -- (i)
 
-  
+  let _ = trace (rank, global_offs)
   let is = tabulate n (\idx -> -- (j)
     let bucket_num = idx / bucket_width
 
     let our_num    = i64.u32 bins[idx]
 
     let local_off = rank[idx]
-   
-
-    let global_off = global_offs[our_num * num_buckets + bucket_num]
+    
+    
+    let _ = trace (our_num, num_buckets, bucket_num)
+    let global_off = global_offs[our_num + num_buckets * bucket_num]
 
     in i64.u32 (local_off+global_off)
   )
-
+  let _ = trace (is, xs)
   in scatter (copy xs) is xs
 
 
@@ -143,4 +143,4 @@ let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
   --  else 
   --     loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
   --else 
-  loop xs for i < 16 do radix_sort_step_nn_4_way xs (u32.i32 i)
+  loop xs for i < 4 do radix_sort_step_nn_4_way xs (u32.i32 i)
