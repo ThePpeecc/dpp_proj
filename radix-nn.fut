@@ -44,7 +44,9 @@ let radix_sort_step_nn [n] (xs : [n]u32) (b : u32) (bits : u32) : [n]u32 =
 
 
 
-
+let get_num mask count num = 
+   if num < 3u32 then (count >> 10*num) & mask
+   else 4 - (count & mask) - ((count >> 10) & mask) - ((count >> 20) & mask)
 
 let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
   let bits_len = (1<<2)
@@ -62,24 +64,14 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
   let num_buckets = n / bucket_width
   let mask = (1<<10)-1
   
-  let get_num count num = 
-    match num 
-        case 0 -> count & mask
-        case 1 -> (count >> 10) & mask
-        case 2 -> (count >> 20) & mask
-        case 3 -> 4 - (count & mask) - ((count >> 10) & mask) - ((count >> 20) & mask)
 
 
-  let pre_count = reverse (map2 (\pref b -> 1-get_num pref b) (reverse prefix) (reverse bins)) -- (e)
-
-  let rank = map3 (\count pref b ->  -- (f)
-      let gn n = get_num pref n
-      let r = match b 
-          case 0 -> count
-          case 1 -> (gn 0) + count
-          case 2 -> (gn 0) + (gn 1) + count
-          case 3 -> (gn 0) + (gn 1) + (gn 2) + count
-       in r
+  let pre_count = reverse (map2 (\pref b -> 1-get_num mask pref b) (reverse prefix) (reverse bins)) -- (e)
+  let rank = map3 (\count pref b -> -- (f) 
+      let gn n = 
+        if b > n then get_num mask pref n
+        else 0
+      in (gn 0) + (gn 1) + (gn 2) + count
     ) pre_count prefix bins 
 
    
@@ -87,7 +79,7 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
   let radix_count = tabulate (num_buckets*(i64.u32 bits_len)) (\idx ->  -- (h)
       let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1]
       let num = (u32.i64 idx) % bits_len
-      in get_num count num
+      in get_num mask count num
     )
 
 
@@ -101,6 +93,7 @@ let radix_sort_step_nn_4_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
     let our_num    = i64.u32 bins[idx]
 
     let local_off = rank[idx]
+   
 
     let global_off = global_offs[our_num * num_buckets + bucket_num]
 
