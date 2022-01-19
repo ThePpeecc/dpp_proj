@@ -63,37 +63,21 @@ let radix_sort_nn_7_way [n] (xs : [n]u32) : [n]u32 =
   let radix_sort_step_nn_7_way [n] (xs : [n]u32) (b : u32) : [n]u32 =
     let bits_len = 1<<3
     let get_bits x = x >> (b*3) & 7
-
     let bins = map get_bits xs -- First get bits for input (a)
-    
     let implicit = map (\x -> 1u64<<(8u64*(u64.u32 x))) bins -- Implicit representation (b)
-
-    
     let prefix = sgmscan (+) 0 (buckets :> [n]i64) implicit -- local prefix sums (c) // Counts can be caclulated now 
-
     let num_buckets = n / bucket_width
-
     let pre_count = map2 (\pref b -> (get_num pref b) - 1) prefix (map u64.u32 bins) -- (e)
-
-
     let radix_count = tabulate (num_buckets*(i64.u32 bits_len)) (\idx ->  -- (h)
         let count = prefix[idx % num_buckets * bucket_width + bucket_width - 1]
         let num = u64.i64 (idx / num_buckets)
         in get_num count num
       )
-
-
-    
     let global_offs = concat [0] (scan (+) 0 radix_count)[:num_buckets*(i64.u32 bits_len)-1] -- (i)
-
     let is = tabulate n (\idx -> -- (j)
       let bucket_num = idx / bucket_width
-
       let our_num    = i64.u32 bins[idx]
-
       let local_off = pre_count[idx]
-      
-      
       let global_off = global_offs[our_num * num_buckets + bucket_num]
       in i64.u64 (local_off+global_off)
     )
