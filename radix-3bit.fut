@@ -128,3 +128,7 @@ let radix_sort_nn [n] (xs : [n]u32) : [n]u32 =
   --     loop xs for i < 16 do radix_sort_step_nn xs (u32.i32 i) 2
   --else 
   radix_sort_nn_7_way xs
+
+
+let main [n] (xs: [n]u32) : [n]u32 =
+ radix_sort_nn_7_way xs
