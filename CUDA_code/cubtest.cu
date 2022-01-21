@@ -81,6 +81,8 @@ int main() {
 
   if (run_cub) {
     // INIT CUB
+    cout << "Cup Version:" << CUB_VERSION;
+    
     void *d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
     cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, data_in, data_out_cub, N);
