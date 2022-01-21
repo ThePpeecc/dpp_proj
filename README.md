@@ -2,6 +2,11 @@
 
 This repository contains the work of Marcus (tkz347) & Chirstoffers (jvf734) final project in DPP. 
 
+Remember to sync the libraries by running
+
+```
+futhark pkg sync
+```
 
 To run test:
 
