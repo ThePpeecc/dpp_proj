@@ -26,7 +26,7 @@ __global__ void init_arr(datatype* data, unsigned long seed, int array_length){
 template<class T>
 bool compare_arrays(T* arr_1, T* arr_2, size_t array_length) {
   for(size_t i = 0; i < array_length; i++){
-    if (arr_1[i] != arr_2[i]);
+    if (arr_1[i] != arr_2[i]) return false;
   }
 
   return true;
@@ -36,6 +36,12 @@ bool compare_arrays(T* arr_1, T* arr_2, size_t array_length) {
 int main() {
   //Init data
   const size_t N = ARRAY_SIZE;
+
+  const size_t block_num = (N % BLOCK_SIZE == 0) ? 
+      N / BLOCK_SIZE : N / BLOCK_SIZE + 1;
+  const size_t d_block_sums_len = WINDOW_SIZE * block_num; // 16-way split
+    
+
 
   bool run_cub = true;
   bool run_my  = true;
@@ -47,17 +53,25 @@ int main() {
   datatype *data_out_my;
   datatype *data_in_mm;
   datatype *data_out_mm;
+  datatype* prefixes;
+  datatype* d_block_sums;
+  datatype* scan_block_sums;
+
 
   int64_t* runs_cub = new int64_t[RUNS];
   int64_t* runs_my  = new int64_t[RUNS];
   int64_t* runs_mm  = new int64_t[RUNS];
   
-  cudaMallocManaged(&data_in, N * sizeof(datatype));
-  cudaMallocManaged(&data_out, N * sizeof(datatype));
-  cudaMallocManaged(&data_out_cub, N * sizeof(datatype));
-  cudaMallocManaged(&data_out_my, N * sizeof(datatype));
-  cudaMallocManaged(&data_in_mm, N * sizeof(datatype));
-  cudaMallocManaged(&data_out_mm, N * sizeof(datatype));
+  cudaMallocManaged(&data_in,         N * sizeof(datatype));
+  cudaMallocManaged(&data_out,        N * sizeof(datatype));
+  cudaMallocManaged(&data_out_cub,    N * sizeof(datatype));
+  cudaMallocManaged(&data_out_my,     N * sizeof(datatype));
+  cudaMallocManaged(&data_in_mm,      N * sizeof(datatype));
+  cudaMallocManaged(&data_out_mm,     N * sizeof(datatype));
+  cudaMallocManaged(&prefixes,        sizeof(datatype) * N);
+  cudaMallocManaged(&d_block_sums,    sizeof(datatype) * d_block_sums_len);
+  cudaMallocManaged(&scan_block_sums, sizeof(datatype) * d_block_sums_len);
+
   
 
   init_arr<<<ARRAY_SIZE / BLOCK_SIZE + 1, BLOCK_SIZE>>>(data_in, SEED, N);
@@ -68,7 +82,7 @@ int main() {
   if (run_my) {
     for (int i = 0; i < RUNS; i++) {
       auto start = std::chrono::high_resolution_clock::now();
-      Kernels::radix_sort_my(data_in, data_out_my, N);
+      Kernels::radix_sort_my(data_in, data_out_my, prefixes, d_block_sums, scan_block_sums, N);
       cudaDeviceSynchronize();
       auto elapsed = std::chrono::high_resolution_clock::now() - start;
       runs_my[i] = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
@@ -81,7 +95,7 @@ int main() {
 
   if (run_cub) {
     // INIT CUB
-    cout << "Cup Version:" << CUB_VERSION;
+    std::cout << "Cup Version:" << CUB_VERSION << "\n";
     
     void *d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;

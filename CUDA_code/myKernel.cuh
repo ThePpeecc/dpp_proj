@@ -144,29 +144,12 @@ namespace Kernels {
   }
 
   template<class T>
-  void radix_sort_my(T* data_in, T* data_out, size_t data_length) {
-    
-
-
-
+  void radix_sort_my(T* data_in, T* data_out, T* prefixes, T* d_block_sums, T* scan_block_sums,  size_t data_length) {
     const size_t block_num = (data_length % BLOCK_SIZE == 0) ? 
       data_length / BLOCK_SIZE : data_length / BLOCK_SIZE + 1;
     const size_t d_block_sums_len = WINDOW_SIZE * block_num; // 16-way split
+    cudaMemcpy(data_out, data_in, sizeof(T)*data_length, cudaMemcpyDeviceToDevice);    
     
-    T* prefixes;
-    T* d_block_sums;
-    T* scan_block_sums;
-
-    cudaMemcpy(data_out, data_in, sizeof(T)*data_length, cudaMemcpyDeviceToDevice);
-
-    cudaMallocManaged(&prefixes,            sizeof(T) * data_length);
-    cudaMallocManaged(&d_block_sums,        sizeof(T) * d_block_sums_len);
-    cudaMallocManaged(&scan_block_sums,     sizeof(T) * d_block_sums_len);
-
-    cudaMemset(prefixes,        0, sizeof(T) * data_length);
-    cudaMemset(d_block_sums,    0, sizeof(T) * d_block_sums_len);
-    cudaMemset(scan_block_sums, 0, sizeof(T) * d_block_sums_len);
-
     // This codes doesn't run an ExclusiveSum, just sets up allocations
     void     *d_temp_storage = NULL;
     size_t   temp_storage_bytes = 0;

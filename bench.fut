@@ -1,10 +1,12 @@
-import "radix-sort-mm"
 import "radix-nn"
+import "radix-3bit"
 import "lib/github.com/diku-dk/sorts/radix_sort"
+import "radix-Marko"
+import "radix-sort-mm"
 
 
 -- ==
--- entry: test_radix_nn test_radix_native
+-- entry: test_radix_nn test_radix_native test_radix_intragroup
 -- random input { [10]u32 }
 -- random input { [100]u32 }
 -- random input { [1000]u32 }
@@ -18,11 +20,10 @@ import "lib/github.com/diku-dk/sorts/radix_sort"
 -- script input { makedata 1000i64 1000i64  }
 -- script input { makedata 10000i64 1000i64  }
 -- script input { makedata 100000i64 1000i64  }
+
 entry test_radix_mm [n] (xs : [n]u32) = radix_sort_mm xs
-
-
 entry test_radix_nn [n] (xs : [n]u32) = radix_sort_nn xs
-
+entry test_radix_intragroup [n] (xs : [n]u32) = radix_sort_nn xs
 
 entry test_radix_native [n] (xs : [n]u32) = radix_sort 32 u32.get_bit xs 
 

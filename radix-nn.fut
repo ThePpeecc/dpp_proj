@@ -81,8 +81,6 @@ let radix_sort_nn_4_way [n] (xs : [n]u32) : [n]u32 =
         let num = u32.i64 (idx / num_buckets)
         in get_num count num
       )
-
-
     
     let global_offs = concat [0] (scan (+) 0 radix_count)[:num_buckets*(i64.u32 bits_len)-1] -- (i)
 
